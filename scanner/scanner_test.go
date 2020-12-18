@@ -1,11 +1,12 @@
 package scanner_test
 
 import (
+	"fmt"
+	"log"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
-
-	"path/filepath"
 
 	"github.com/dave/courtney/scanner"
 	"github.com/dave/courtney/shared"
@@ -34,6 +35,77 @@ func TestSingle(t *testing.T) {
 		`,
 	}
 	test(t, tests)
+}
+
+func TestErrAbort(t *testing.T) {
+	source := `package a
+
+		func abortWithErr(error)
+		func oops() error
+		
+		func a() {
+			err := oops()
+			if err != nil {
+				abortWithError(err)
+				return
+			}
+		}
+	`
+
+	for _, excludeErrNoReturnParam := range []bool{true, false} {
+		t.Run(fmt.Sprintf("excludeErrNoReturnParam=%v", excludeErrNoReturnParam), func(t *testing.T) {
+			env := vos.Mock()
+			b, err := builder.New(env, "ns", true)
+			if err != nil {
+				t.Fatalf(fmt.Sprintf("%+v", err))
+			}
+			defer b.Cleanup()
+
+			ppath, pdir, err := b.Package("a", map[string]string{
+				"a.go": source,
+			})
+			if err != nil {
+				t.Fatalf(fmt.Sprintf("%+v", err))
+			}
+
+			paths := patsy.NewCache(env)
+			setup := &shared.Setup{
+				Env:   env,
+				Paths: paths,
+				Options: shared.Options{
+					ExcludeErrNoReturnParam: excludeErrNoReturnParam,
+				},
+			}
+			if err := setup.Parse([]string{ppath}); err != nil {
+				t.Fatalf(fmt.Sprintf("%+v", err))
+			}
+
+			cm := scanner.New(setup)
+
+			if err := cm.LoadProgram(); err != nil {
+				t.Fatalf(fmt.Sprintf("%+v", err))
+			}
+
+			if err := cm.ScanPackages(); err != nil {
+				t.Fatalf(fmt.Sprintf("%+v", err))
+			}
+
+			result := cm.Excludes[filepath.Join(pdir, "a.go")]
+
+			if excludeErrNoReturnParam {
+				if len(result) != 1 || !result[10] {
+					log.Fatalf("Expected line 10 to be excluded, got %v", result)
+				}
+
+			} else {
+				if len(result) != 0 {
+					log.Fatalf("Expected no exclude lines, got %v", result)
+				}
+			}
+
+			fmt.Printf("%+v \n", result)
+		})
+	}
 }
 
 func TestSwitchCase(t *testing.T) {

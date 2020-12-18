@@ -18,8 +18,13 @@ type Setup struct {
 	Timeout  string
 	Load     string
 	Output   string
+	Options  Options
 	TestArgs []string
 	Packages []PackageSpec
+}
+
+type Options struct {
+	ExcludeErrNoReturnParam bool
 }
 
 // PackageSpec identifies a package by dir and path

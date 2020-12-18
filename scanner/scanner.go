@@ -345,6 +345,7 @@ func (f *FileMap) inspectNodeForReturn(search ast.Expr) func(node ast.Node) bool
 		if node == nil {
 			return true
 		}
+
 		switch n := node.(type) {
 		case *ast.ReturnStmt:
 			if f.isErrorReturn(n, search) {
@@ -449,7 +450,7 @@ func (f *FileMap) isErrorReturnNamedResultParameters(r *ast.ReturnStmt, search a
 	case *ast.FuncLit:
 		t = s.Type
 	}
-	if t.Results == nil {
+	if t == nil || t.Results == nil {
 		return false
 	}
 	last := t.Results.List[len(t.Results.List)-1]
@@ -463,9 +464,35 @@ func (f *FileMap) isErrorReturnNamedResultParameters(r *ast.ReturnStmt, search a
 	return f.matcher.Match(id, search)
 }
 
+func (f *FileMap) isErrorReturnNoResultParameters(r *ast.ReturnStmt) bool {
+	// covers the syntax:
+	// func a() () {
+	// 	if err != nil {
+	// 		return
+	// 	}
+	// }
+	scope := f.findScope(r, func(n ast.Node) bool {
+		switch n.(type) {
+		case *ast.FuncDecl, *ast.FuncLit:
+			return true
+		}
+		return false
+	})
+	var t *ast.FuncType
+	switch s := scope.(type) {
+	case *ast.FuncDecl:
+		t = s.Type
+	case *ast.FuncLit:
+		t = s.Type
+	}
+
+	return t == nil || t.Results == nil
+}
+
 func (f *FileMap) isErrorReturn(r *ast.ReturnStmt, search ast.Expr) bool {
 	if len(r.Results) == 0 {
-		return f.isErrorReturnNamedResultParameters(r, search)
+		return f.isErrorReturnNamedResultParameters(r, search) ||
+			(f.setup.Options.ExcludeErrNoReturnParam && f.isErrorReturnNoResultParameters(r))
 	}
 
 	last := r.Results[len(r.Results)-1]

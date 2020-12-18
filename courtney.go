@@ -27,17 +27,21 @@ func main() {
 	argsFlag := new(argsValue)
 	flag.Var(argsFlag, "t", "Argument to pass to the 'go test' command. Can be used more than once.")
 	loadFlag := flag.String("l", "", "Load coverage file(s) instead of running 'go test'")
+	excludeErrNoReturnParamFlag := flag.Bool("excludenoreturn", false, "Exclude error blocks in functions with no return params")
 
 	flag.Parse()
 
 	setup := &shared.Setup{
-		Env:      env,
-		Paths:    patsy.NewCache(env),
-		Enforce:  *enforceFlag,
-		Verbose:  *verboseFlag,
-		Short:    *shortFlag,
-		Timeout:  *timeoutFlag,
-		Output:   *outputFlag,
+		Env:     env,
+		Paths:   patsy.NewCache(env),
+		Enforce: *enforceFlag,
+		Verbose: *verboseFlag,
+		Short:   *shortFlag,
+		Timeout: *timeoutFlag,
+		Output:  *outputFlag,
+		Options: shared.Options{
+			ExcludeErrNoReturnParam: *excludeErrNoReturnParamFlag,
+		},
 		TestArgs: argsFlag.args,
 		Load:     *loadFlag,
 	}
