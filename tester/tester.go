@@ -55,9 +55,16 @@ func (t *Tester) Test() error {
 	}
 	defer os.RemoveAll(t.cover)
 
+	excludes := make(map[string]bool, len(t.setup.ExcludePkgs))
+	for _, s := range t.setup.ExcludePkgs {
+		excludes[s] = true
+	}
+
 	for _, spec := range t.setup.Packages {
-		if err := t.processDir(spec.Dir); err != nil {
-			return err
+		if !excludes[spec.Path] {
+			if err := t.processDir(spec.Dir); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -212,10 +219,25 @@ func (t *Tester) processDir(dir string) error {
 		t.setup.Env.Stderr(),
 	)
 
+	excludes := make(map[string]bool, len(t.setup.ExcludePkgs))
+	for _, s := range t.setup.ExcludePkgs {
+		excludes[s] = true
+	}
+
 	var args []string
-	var pkgs []string
-	for _, s := range t.setup.Packages {
-		pkgs = append(pkgs, s.Path)
+	var coverPkgs []string
+	if len(t.setup.CoverPkgs) > 0 {
+		for _, p := range t.setup.CoverPkgs {
+			if !excludes[p] {
+				coverPkgs = append(coverPkgs, p)
+			}
+		}
+	} else {
+		for _, p := range t.setup.Packages {
+			if !excludes[p.Path] {
+				coverPkgs = append(coverPkgs, p.Path)
+			}
+		}
 	}
 	args = append(args, "test")
 	if t.setup.Short {
@@ -228,7 +250,7 @@ func (t *Tester) processDir(dir string) error {
 		// TODO: add test
 		args = append(args, "-timeout", t.setup.Timeout)
 	}
-	args = append(args, fmt.Sprintf("-coverpkg=%s", strings.Join(pkgs, ",")))
+	args = append(args, fmt.Sprintf("-coverpkg=%s", strings.Join(coverPkgs, ",")))
 	args = append(args, fmt.Sprintf("-coverprofile=%s", coverfile))
 	if t.setup.Verbose {
 		args = append(args, "-v")

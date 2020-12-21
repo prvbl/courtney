@@ -6,13 +6,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/pkg/errors"
-
 	"github.com/dave/courtney/scanner"
 	"github.com/dave/courtney/shared"
 	"github.com/dave/courtney/tester"
 	"github.com/dave/patsy"
 	"github.com/dave/patsy/vos"
+	"github.com/pkg/errors"
 )
 
 func main() {
@@ -28,8 +27,24 @@ func main() {
 	flag.Var(argsFlag, "t", "Argument to pass to the 'go test' command. Can be used more than once.")
 	loadFlag := flag.String("l", "", "Load coverage file(s) instead of running 'go test'")
 	excludeErrNoReturnParamFlag := flag.Bool("excludenoreturn", false, "Exclude error blocks in functions with no return params")
+	coverPkgFlag := new(argsValue)
+	flag.Var(coverPkgFlag, "coverpkg", "Specify which packages to cover")
+	excludePkgsFlag := new(argsValue)
+	flag.Var(excludePkgsFlag, "ex", "Argument to exclude packages from the cover profile.")
 
 	flag.Parse()
+
+	// coverpkg flag supports both multiple flags and csv
+	coverPkgs := make([]string, 0)
+	for _, coverPkg := range coverPkgFlag.args {
+		coverPkgs = append(coverPkgs, strings.Split(coverPkg, ",")...)
+	}
+
+	// excludepkg flag supports both multiple flags and csv
+	excludePkgs := make([]string, 0)
+	for _, excludePkg := range excludePkgsFlag.args {
+		excludePkgs = append(excludePkgs, strings.Split(excludePkg, ",")...)
+	}
 
 	setup := &shared.Setup{
 		Env:     env,
@@ -42,8 +57,10 @@ func main() {
 		Options: shared.Options{
 			ExcludeErrNoReturnParam: *excludeErrNoReturnParamFlag,
 		},
-		TestArgs: argsFlag.args,
-		Load:     *loadFlag,
+		TestArgs:    argsFlag.args,
+		CoverPkgs:   coverPkgs,
+		ExcludePkgs: excludePkgs,
+		Load:        *loadFlag,
 	}
 	if err := Run(setup); err != nil {
 		fmt.Printf("%+v", err)
@@ -53,8 +70,25 @@ func main() {
 
 // Run initiates the command with the provided setup
 func Run(setup *shared.Setup) error {
+	var err error
 	if err := setup.Parse(flag.Args()); err != nil {
 		return errors.Wrapf(err, "Parse")
+	}
+
+	// normalize coverpkgs paths
+	if len(setup.CoverPkgs) > 0 {
+		setup.CoverPkgs, err = setup.ParsePkgArgs(setup.CoverPkgs)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	}
+
+	// normalize excludepkgs paths
+	if len(setup.ExcludePkgs) > 0 {
+		setup.ExcludePkgs, err = setup.ParsePkgArgs(setup.ExcludePkgs)
+		if err != nil {
+			return errors.WithStack(err)
+		}
 	}
 
 	s := scanner.New(setup)

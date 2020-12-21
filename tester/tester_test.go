@@ -381,4 +381,112 @@ func TestTester_Test(t *testing.T) {
 	}
 }
 
+func TestTester_TestExcludePkgs(t *testing.T) {
+
+	type files map[string]string
+	type packages map[string]files
+
+	pkgs := packages{
+		"a": files{
+			"a.go": `package a
+					
+						func Foo(i int) int {
+							i++ // 1
+							return i
+						}
+						
+						func Bar(i int) int {
+							i++ // 1
+							return i
+						}
+					`,
+			"a_test.go": `package a
+					
+					import "testing"
+					
+					func TestFoo(t *testing.T) {
+						i := Foo(1)
+						if i != 2 {
+							t.Fail()
+						}
+					}
+					`,
+		},
+		"b": files{
+			"b.go": `package b
+					
+						func Faz(i int) int {
+							i++ // 1
+							return i
+						}
+					`,
+			"b_test.go": `package b
+						
+						import (
+							"testing"
+							"ns/a"
+						)
+						
+						func TestBar(t *testing.T) {
+							i := a.Bar(1)
+							if i != 2 {
+								t.Fail()
+							}
+						}
+					`,
+		},
+	}
+
+	for _, gomod := range []bool{true, false} {
+		t.Run(fmt.Sprintf("gomod=%v", gomod), func(t *testing.T) {
+			env := vos.Mock()
+			b, err := builder.New(env, "ns", gomod)
+			if err != nil {
+				t.Fatalf("Error creating builder: %+v", err)
+			}
+			defer b.Cleanup()
+
+			for pname, files := range pkgs {
+				if _, _, err := b.Package(pname, files); err != nil {
+					t.Fatalf("Error creating package %s: %+v", pname, err)
+				}
+			}
+
+			paths := patsy.NewCache(env)
+
+			setup := &shared.Setup{
+				Env:   env,
+				Paths: paths,
+				ExcludePkgs: []string{
+					"ns/a",
+				},
+			}
+			if err := setup.Parse([]string{"ns/..."}); err != nil {
+				t.Fatalf("Error parsing args: %+v", err)
+			}
+
+			ts := tester.New(setup)
+
+			if err := ts.Test(); err != nil {
+				t.Fatalf("Error while running test: %+v", err)
+			}
+
+			fmt.Printf("Results: %#v\n", ts.Results)
+
+			filesInOutput := map[string]bool{}
+			for _, p := range ts.Results {
+				filesInOutput[p.FileName] = true
+			}
+			fmt.Printf("%#v\n", filesInOutput)
+
+			if len(filesInOutput) != 1 {
+				t.Fatalf("Expected only 1 file in output, got: %+v", filesInOutput)
+			}
+			if !filesInOutput["ns/b/b.go"] {
+				t.Fatalf("Expected ns/b/b.go in output, got %+v", filesInOutput)
+			}
+		})
+	}
+}
+
 var annotatedLine = regexp.MustCompile(`// \d+$`)
