@@ -109,6 +109,11 @@ Add one `-t` flag per argument e.g.
 courtney -t="-count=2" -t="-parallel=4"
 ```
 
+Alternative you can add them at the end of the command after a `--` like so:
+```
+courtney . -- -count=2 -parallel=4
+```
+
 ### Verbose: -v
 `Verbose output`
 

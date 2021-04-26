@@ -23,8 +23,8 @@ func main() {
 	shortFlag := flag.Bool("short", false, "Pass the short flag to the go test command")
 	timeoutFlag := flag.String("timeout", "", "Pass the timeout flag to the go test command")
 	outputFlag := flag.String("o", "", "Override coverage file location")
-	argsFlag := new(argsValue)
-	flag.Var(argsFlag, "t", "Argument to pass to the 'go test' command. Can be used more than once.")
+	testArgsFlag := new(argsValue)
+	flag.Var(testArgsFlag, "t", "Argument to pass to the 'go test' command. Can be used more than once.")
 	loadFlag := flag.String("l", "", "Load coverage file(s) instead of running 'go test'")
 	excludeErrNoReturnParamFlag := flag.Bool("excludenoreturn", false, "Exclude error blocks in functions with no return params")
 	coverPkgFlag := new(argsValue)
@@ -33,6 +33,23 @@ func main() {
 	flag.Var(excludePkgsFlag, "ex", "Argument to exclude packages from the cover profile.")
 
 	flag.Parse()
+	args := flag.Args()
+
+	// any args after a "--" arg will be considered args for `go test`
+	testArgs := testArgsFlag.args
+	pkgArgs := make([]string, 0, len(args))
+	foundTestArgs := false
+	for _, arg := range args {
+		if strings.TrimSpace(arg) == "--" {
+			foundTestArgs = true
+			continue
+		}
+		if foundTestArgs {
+			testArgs = append(testArgs, arg)
+		} else {
+			pkgArgs = append(pkgArgs, arg)
+		}
+	}
 
 	// coverpkg flag supports both multiple flags and csv
 	coverPkgs := make([]string, 0)
@@ -57,21 +74,22 @@ func main() {
 		Options: shared.Options{
 			ExcludeErrNoReturnParam: *excludeErrNoReturnParamFlag,
 		},
-		TestArgs:    argsFlag.args,
+		TestArgs:    testArgs,
 		CoverPkgs:   coverPkgs,
 		ExcludePkgs: excludePkgs,
 		Load:        *loadFlag,
 	}
-	if err := Run(setup); err != nil {
+	if err := Run(setup, pkgArgs); err != nil {
 		fmt.Printf("%+v", err)
 		os.Exit(1)
 	}
 }
 
 // Run initiates the command with the provided setup
-func Run(setup *shared.Setup) error {
+func Run(setup *shared.Setup, pkgArgs []string) error {
 	var err error
-	if err := setup.Parse(flag.Args()); err != nil {
+
+	if err := setup.Parse(pkgArgs); err != nil {
 		return errors.Wrapf(err, "Parse")
 	}
 
