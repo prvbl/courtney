@@ -6,13 +6,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/pkg/errors"
-
 	"github.com/dave/courtney/scanner"
 	"github.com/dave/courtney/shared"
 	"github.com/dave/courtney/tester"
 	"github.com/dave/patsy"
 	"github.com/dave/patsy/vos"
+	"github.com/pkg/errors"
 )
 
 func main() {
@@ -24,11 +23,28 @@ func main() {
 	shortFlag := flag.Bool("short", false, "Pass the short flag to the go test command")
 	timeoutFlag := flag.String("timeout", "", "Pass the timeout flag to the go test command")
 	outputFlag := flag.String("o", "", "Override coverage file location")
-	argsFlag := new(argsValue)
-	flag.Var(argsFlag, "t", "Argument to pass to the 'go test' command. Can be used more than once.")
+	testArgsFlag := new(argsValue)
+	flag.Var(testArgsFlag, "t", "Argument to pass to the 'go test' command. Can be used more than once.")
 	loadFlag := flag.String("l", "", "Load coverage file(s) instead of running 'go test'")
 
 	flag.Parse()
+	args := flag.Args()
+
+	// any args after a "--" arg will be considered args for `go test`
+	testArgs := testArgsFlag.args
+	pkgArgs := make([]string, 0, len(args))
+	foundTestArgs := false
+	for _, arg := range args {
+		if strings.TrimSpace(arg) == "--" {
+			foundTestArgs = true
+			continue
+		}
+		if foundTestArgs {
+			testArgs = append(testArgs, arg)
+		} else {
+			pkgArgs = append(pkgArgs, arg)
+		}
+	}
 
 	setup := &shared.Setup{
 		Env:      env,
@@ -38,18 +54,18 @@ func main() {
 		Short:    *shortFlag,
 		Timeout:  *timeoutFlag,
 		Output:   *outputFlag,
-		TestArgs: argsFlag.args,
+		TestArgs: testArgs,
 		Load:     *loadFlag,
 	}
-	if err := Run(setup); err != nil {
+	if err := Run(setup, pkgArgs); err != nil {
 		fmt.Printf("%+v", err)
 		os.Exit(1)
 	}
 }
 
 // Run initiates the command with the provided setup
-func Run(setup *shared.Setup) error {
-	if err := setup.Parse(flag.Args()); err != nil {
+func Run(setup *shared.Setup, pkgArgs []string) error {
+	if err := setup.Parse(pkgArgs); err != nil {
 		return errors.Wrapf(err, "Parse")
 	}
 
