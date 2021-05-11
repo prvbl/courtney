@@ -260,11 +260,13 @@ func (t *Tester) processDir(dir string) error {
 		args = append(args, t.setup.TestArgs...)
 	}
 	if t.setup.Verbose {
-		fmt.Fprintf(
+		_, _ = fmt.Fprintf(
 			t.setup.Env.Stdout(),
 			"Running test: %s\n",
 			strings.Join(append([]string{"go"}, args...), " "),
 		)
+	} else if t.setup.ReportTestRun {
+		_, _ = fmt.Fprintf(t.setup.Env.Stdout(), "Running test: %s\n", dir)
 	}
 
 	exe := exec.Command("go", args...)

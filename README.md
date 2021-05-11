@@ -119,6 +119,11 @@ courtney . -- -count=2 -parallel=4
 
 All the output from the `go test -v` command is shown.
 
+### Report: -r
+`Report tests being ran`
+
+Reports each test (package) being ran.
+
 # Output
 Courtney will fail if the tests fail. If the tests succeed, it will create or
 overwrite a `coverage.out` file in the current directory.
