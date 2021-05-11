@@ -21,6 +21,7 @@ func main() {
 	enforceFlag := flag.Bool("e", false, "Enforce 100% code coverage")
 	verboseFlag := flag.Bool("v", false, "Verbose output")
 	reportFlag := flag.Bool("r", false, "Print each package being tested")
+	parallelFlag := flag.Int("p", 1, "Run multiple tests in parallel")
 	shortFlag := flag.Bool("short", false, "Pass the short flag to the go test command")
 	timeoutFlag := flag.String("timeout", "", "Pass the timeout flag to the go test command")
 	outputFlag := flag.String("o", "", "Override coverage file location")
@@ -67,6 +68,7 @@ func main() {
 	setup := &shared.Setup{
 		Env:           env,
 		Paths:         patsy.NewCache(env),
+		Parallel:      *parallelFlag,
 		Enforce:       *enforceFlag,
 		Verbose:       *verboseFlag,
 		ReportTestRun: *reportFlag,
